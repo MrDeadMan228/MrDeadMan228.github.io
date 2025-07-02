@@ -3,6 +3,553 @@
   <body>
     <h1>matvey potapov</h1>
     <p>3cca-22-1</p>
-    <p>Я уже говорил тебе что такое безумие? Безумие это повторение одного и тогоже действия раз за разом надеясь на изменение, это и есть безумие</p>
+    <p>Модуль 1
+Я начинаю с базовой настройки всех устройств, включая присвоение имен и настройку IPv4-адресации. Цель — задать понятные имена в соответствии с топологией и рассчитать IP-адреса из приватных диапазонов (согласно RFC 1918), удовлетворяющие требованиям для каждой VLAN. Я присваиваю полные доменные имена (FQDN) каждому устройству.
+# Вход в режим глобальной конфигурации
+configure terminal
+# Задание имени
+hostname isp.au-team.irpo
+# Выход из режима конфигурации
+exit
+# Сохранение конфигурации
+write memory
+
+configure terminal
+hostname hq-rtr.au-team.irpo
+exit
+write memory
+
+configure terminal
+hostname br-rtr.au-team.irpo
+exit
+write memory
+
+# Для ОС Альт Сервер (на базе Linux)
+sudo hostnamectl set-hostname hq-srv.au-team.irpo
+# Сохранение имени
+sudo bash -c 'echo hq-srv.au-team.irpo > /etc/hostname'
+
+
+sudo hostnamectl set-hostname br-srv.au-team.irpo
+sudo bash -c 'echo br-srv.au-team.irpo > /etc/hostname'
+
+sudo hostnamectl set-hostname hq-cli.au-team.irpo
+sudo bash -c 'echo hq-cli.au-team.irpo > /etc/hostname'
+Я рассчитываю подсети, исходя из требований:
+	VLAN 100 (HQ-SRV): нужно 64 адреса → /26 (64 хоста). Выбираю 192.168.10.0/26 (диапазон: 192.168.10.0 - 192.168.10.63).
+	VLAN 200 (HQ-CLI): нужно 16 адресов → /28 (16 хостов). Выбираю 192.168.10.64/28 (диапазон: 192.168.10.64 - 192.168.10.79).
+	VLAN 999 (Управление): нужно 8 адресов → /29 (8 хостов). Выбираю 192.168.10.80/29 (диапазон: 192.168.10.80 - 192.168.10.87).
+	Сеть BR-SRV: нужно 32 адреса → /27 (32 хоста). Выбираю 192.168.20.0/27 (диапазон: 192.168.20.0 - 192.168.20.31).
+	ISP к HQ-RTR: указано 172.16.4.0/28 (16 хостов, диапазон: 172.16.4.0 - 172.16.4.15).
+	ISP к BR-RTR: указано 172.16.5.0/28 (16 хостов, диапазон: 172.16.5.0 - 172.16.5.15).
+Таблица 3: Назначение IP-адресов
+Устройство	Интерфейс	IP-адрес	Маска подсети	Шлюз по умолчанию
+HQ-RTR	VLAN 100	192.168.10.1/26	255.255.255.192	-
+HQ-RTR	VLAN 200	192.168.10.65/28	255.255.255.240	-
+HQ-RTR	VLAN 999	192.168.10.81/29	255.255.255.248	-
+HQ-RTR	G0/0 (к ISP)	172.16.4.2/28	255.255.255.240	172.16.4.1
+BR-RTR	G0/0 (к ISP)	172.16.5.2/28	255.255.255.240	172.16.5.1
+BR-RTR	G0/1 (к BR-SRV)	192.168.20.1/27	255.255.255.224	-
+HQ-SRV	eth0	192.168.10.2/26	255.255.255.192	192.168.10.1
+BR-SRV	eth0	192.168.20.2/27	255.255.255.224	192.168.20.1
+HQ-CLI	eth0	192.168.10.66/28	255.255.255.240	192.168.10.65
+ISP	G0/0 (к HQ-RTR)	172.16.4.1/28	255.255.255.240	-
+ISP	G0/1 (к BR-RTR)	172.16.5.1/28	255.255.255.240	-
+Настройка интерфейсов HQ-RTR
+configure terminal
+interface vlan 100
+ ip address 192.168.10.1 255.255.255.192
+ no shutdown
+interface vlan 200
+ ip address 192.168.10.65 255.255.255.240
+ no shutdown
+interface vlan 999
+ ip address 192.168.10.81 255.255.255.248
+ no shutdown
+interface gigabitEthernet0/0
+ ip address 172.16.4.2 255.255.255.240
+ no shutdown
+exit
+ip route 0.0.0.0 0.0.0.0 172.16.4.1
+exit
+write memory
+Настройка интерфейсов BR-RTR
+configure terminal
+interface gigabitEthernet0/0
+ ip address 172.16.5.2 255.255.255.240
+ no shutdown
+interface gigabitEthernet0/1
+ ip address 192.168.20.1 255.255.255.224
+ no shutdown
+exit
+ip route 0.0.0.0 0.0.0.0 172.16.5.1
+exit
+write memory
+Настройка IP на HQ-SRV
+sudo nano /etc/netplan/01-netcfg.yaml
+
+network:
+  version: 2
+  ethernets:
+    eth0:
+      addresses:
+        - 192.168.10.2/26
+      gateway4: 192.168.10.1
+      nameservers:
+        addresses: [192.168.10.2]
+
+sudo netplan apply
+Настройка IP на BR-SRV
+sudo nano /etc/netplan/01-netcfg.yaml
+
+network:
+  version: 2
+  ethernets:
+    eth0:
+      addresses:
+        - 192.168.20.2/27
+      gateway4: 192.168.20.1
+      nameservers:
+        addresses: [192.168.10.2]
+
+sudo netplan apply
+DHCP для HQ-CLI я настрою позже, но для тестов задаю статический IP временно.
+sudo nano /etc/netplan/01-netcfg.yaml
+
+network:
+  version: 2
+  ethernets:
+    eth0:
+      addresses:
+        - 192.168.10.66/28
+      gateway4: 192.168.10.65
+      nameservers:
+        addresses: [192.168.10.2]
+
+sudo netplan apply
+Я настраиваю маршрутизатор ISP для назначения адресов и включения NAT для HQ-RTR и BR-RTR.
+Настройка интерфейсов ISP
+configure terminal
+interface gigabitEthernet0/0
+ ip address 172.16.4.1 255.255.255.240
+ no shutdown
+interface gigabitEthernet0/1
+ ip address 172.16.5.1 255.255.255.240
+ no shutdown
+interface gigabitEthernet0/2
+ ip address dhcp
+ no shutdown
+exit
+Настройка NAT
+access-list 1 permit 172.16.4.0 0.0.0.15
+access-list 2 permit 172.16.5.0 0.0.0.15
+ip nat pool HQ_POOL 172.16.4.1 172.16.4.1 netmask 255.255.255.240
+ip nat pool BR_POOL 172.16.5.1 172.16.5.1 netmask 255.255.255.240
+ip nat inside source list 1 pool HQ_POOL overload
+ip nat inside source list 2 pool BR_POOL overload
+interface gigabitEthernet0/0
+ ip nat inside
+interface gigabitEthernet0/1
+ ip nat inside
+interface gigabitEthernet0/2
+ ip nat outside
+exit
+write memory
+Интерфейс ISP к провайдеру получает IP по DHCP, а NAT обеспечивает доступ HQ-RTR и BR-RTR в Интернет. Я создаю требуемых пользователей на серверах и маршрутизаторах.
+Настройка пользователей на HQ-SRV и BR-SRV
+# На HQ-SRV
+sudo useradd -m -u 1010 -s /bin/bash sshuser
+sudo passwd sshuser
+# Ввожу пароль P@ssw0rd
+sudo bash -c 'echo "sshuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/sshuser'
+
+# На BR-SRV (те же команды)
+sudo useradd -m -u 1010 -s /bin/bash sshuser
+sudo passwd sshuser
+# Ввожу пароль P@ssw0rd
+sudo bash -c 'echo "sshuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/sshuser'
+Настройка пользователей на HQ-RTR и BR-RTR
+configure terminal
+username net_admin privilege 15 secret P@$$word
+line vty 0 4
+ login local
+exit
+write memory
+Пользователь net_admin получает максимальные привилегии, а sshuser может использовать sudo без пароля. Я настраиваю коммутатор, подключенный к HQ-RTR, для работы с VLAN 100, 200 и 999. HQ-RTR имеет модуль коммутатора уровня 3.
+Настройка коммутатора
+configure terminal
+vlan 100
+ name HQ-SRV
+vlan 200
+ name HQ-CLI
+vlan 999
+ name MANAGEMENT
+exit
+interface gigabitEthernet0/1
+ switchport mode access
+ switchport access vlan 100
+ no shutdown
+interface gigabitEthernet0/2
+ switchport mode access
+ switchport access vlan 200
+ no shutdown
+interface gigabitEthernet0/3
+ switchport mode access
+ switchport access vlan 999
+ no shutdown
+interface gigabitEthernet0/0
+ switchport mode trunk
+ switchport trunk allowed vlan 100,200,999
+ no shutdown
+exit
+write memory
+Я настраиваю SSH на обоих серверах с учетом требований.
+Настройка SSH на HQ-SRV
+sudo nano /etc/ssh/sshd_config
+Обновляю следующие строки:
+Port 2024
+PermitRootLogin no
+AllowUsers sshuser
+MaxAuthTries 2
+Banner /etc/issue.net
+Создаю баннер:
+sudo bash -c 'echo "Authorized access only" > /etc/issue.net'
+Перезапускаю SSH:
+sudo systemctl restart sshd
+Повторяю те же шаги на BR-SRV, обеспечивая идентичные настройки. Я выбираю GRE для туннеля между HQ-RTR и BR-RTR.
+configure terminal
+interface tunnel0
+ ip address 10.0.0.1 255.255.255.252
+ tunnel source gigabitEthernet0/0
+ tunnel destination 172.16.5.2
+ no shutdown
+exit
+write memory
+Настройка туннеля на BR-RTR
+configure terminal
+interface tunnel0
+ ip address 10.0.0.2 255.255.255.252
+ tunnel source gigabitEthernet0/0
+ tunnel destination 172.16.4.2
+ no shutdown
+exit
+write memory
+Я использую OSPF как протокол состояния канала, ограничивая его туннельным интерфейсом.
+configure terminal
+router ospf 1
+ network 10.0.0.0 0.0.0.3 area 0
+ network 192.168.10.0 0.0.0.255 area 0
+ network 192.168.20.0 0.0.0.255 area 0
+exit
+interface tunnel0
+ ip ospf authentication message-digest
+ ip ospf message-digest-key 1 md5 OSPFkey
+exit
+write memory
+Настройка OSPF на BR-RTR
+configure terminal
+router ospf 1
+ network 10.0.0.0 0.0.0.3 area 0
+ network 192.168.10.0 0.0.0.255 area 0
+ network 192.168.20.0 0.0.0.255 area 0
+exit
+interface tunnel0
+ ip ospf authentication message-digest
+ ip ospf message-digest-key 1 md5 OSPFkey
+exit
+write memory
+Я настраиваю PAT на HQ-RTR и BR-RTR для доступа в Интернет.
+configure terminal
+access-list 10 permit 192.168.10.0 0.0.0.255
+ip nat inside source list 10 interface gigabitEthernet0/0 overload
+interface vlan 100
+ ip nat inside
+interface vlan 200
+ ip nat inside
+interface vlan 999
+ ip nat inside
+interface gigabitEthernet0/0
+ ip nat outside
+exit
+write memory
+NAT на BR-RTR
+configure terminal
+access-list 10 permit 192.168.20.0 0.0.0.255
+ip nat inside source list 10 interface gigabitEthernet0/0 overload
+interface gigabitEthernet0/1
+ ip nat inside
+interface gigabitEthernet0/0
+ ip nat outside
+exit
+write memory
+Я настраиваю DHCP на HQ-RTR для HQ-CLI в VLAN 200.
+configure terminal
+ip dhcp excluded-address 192.168.10.65
+ip dhcp pool HQ-CLI-POOL
+ network 192.168.10.64 255.255.255.240
+ default-router 192.168.10.65
+ dns-server 192.168.10.2
+ domain-name au-team.irpo
+exit
+write memory
+Клиент DHCP на HQ-CLI
+sudo nano /etc/netplan/01-netcfg.yaml
+network:
+  version: 2
+  ethernets:
+    eth0:
+      dhcp4: yes
+sudo netplan apply
+Я проверяю, что HQ-CLI получает IP (например, 192.168.10.66), шлюз (192.168.10.65), DNS (192.168.10.2) и домен (au-team.irpo). Я настраиваю DNS на HQ-SRV с использованием BIND.
+Настройка BIND на HQ-SRV
+sudo apt update
+sudo apt install bind9
+sudo nano /etc/bind/named.conf.local
+zone "au-team.irpo" {
+    type master;
+    file "/etc/bind/db.au-team.irpo";
+};
+
+zone "10.168.192.in-addr.arpa" {
+    type master;
+    file "/etc/bind/db.192.168.10";
+};
+Создаю прямую зону:
+sudo nano /etc/bind/db.au-team.irpo
+$TTL 86400
+@ IN SOA hq-srv.au-team.irpo. admin.au-team.irpo. (
+    2025041101 ; Serial
+    3600       ; Refresh
+    1800       ; Retry
+    604800     ; Expire
+    86400 )    ; Minimum
+@ IN NS hq-srv.au-team.irpo.
+hq-rtr IN A 192.168.10.1
+hq-srv IN A 192.168.10.2
+hq-cli IN A 192.168.10.66
+br-rtr IN A 192.168.20.1
+br-srv IN A 192.168.20.2
+moodle IN CNAME hq-rtr
+wiki   IN CNAME hq-rtr
+Создаю обратную зону:
+sudo nano /etc/bind/db.192.168.10
+$TTL 86400
+@ IN SOA hq-srv.au-team.irpo. admin.au-team.irpo. (
+    2025041101 ; Serial
+    3600       ; Refresh
+    1800       ; Retry
+    604800     ; Expire
+    86400 )    ; Minimum
+@ IN NS hq-srv.au-team.irpo.
+1 IN PTR hq-rtr.au-team.irpo.
+2 IN PTR hq-srv.au-team.irpo.
+66 IN PTR hq-cli.au-team.irpo.
+Задаю пересылку:
+sudo nano /etc/bind/named.conf.options
+options {
+    directory "/var/cache/bind";
+    forwarders {
+        8.8.8.8;
+    };
+    dnssec-validation auto;
+    listen-on-v6 { none; };
+};
+Перезапускаю BIND:
+sudo named-checkconf
+sudo systemctl restart bind9
+Я тестирую разрешение имен (например, nslookup hq-rtr.au-team.irpo возвращает 192.168.10.1).
+sudo timedatectl set-timezone Europe/Moscow
+configure terminal
+clock timezone MSK 3
+exit
+write memory
+ Создание виртуальных машин
+В соответствии с заданием, создадим следующие виртуальные машины (VM) в Proxmox:
+Устройство	RAM (ГБ)	CPU	HDD/SSD (ГБ)	ОС
+HQ-RTR	1	1	10	EcoRouter или аналог
+BR-RTR	1	1	10	EcoRouter или аналог
+HQ-SRV	2	1	10	Альт Сервер или аналог
+BR-SRV	2	1	10	Альт Сервер или аналог
+HQ-CLI	3	2	15	Альт Рабочая Станция или аналог
+Процесс создания VM:
+1.	Войти в веб-интерфейс Proxmox.
+2.	Нажать на "Create VM".
+3.	Заполните поля, установив параметры для каждой VM по таблице выше.
+Установить операционную систему согласно требованиям.
+Присвоение имен и настройка IP-адресации
+На каждом устройстве необходимо выполнить следующие настройки:
+Присвоить имя:
+	HQ-RTR: hq-rtr.au-team.irpo
+	BR-RTR: br-rtr.au-team.irpo
+	HQ-SRV: hq-srv.au-team.irpo
+	BR-SRV: br-srv.au-team.irpo
+	HQ-CLI: hq-cli.au-team.irpo
+        Настройка IP-адресов:
+Устройство	IP-адрес	Подсеть	CIDR
+HQ-RTR	172.16.4.1	172.16.4.0/28	/28
+BR-RTR	172.16.5.1	172.16.5.0/28	/28
+HQ-SRV	172.16.4.2	172.16.4.0/28	/28
+BR-SRV	172.16.5.2	172.16.5.0/28	/28
+HQ-CLI	172.16.6.2	172.16.6.0/28	/28
+ISP	172.16.0.1	172.16.0.0	/28
+Для VLAN:
+	VLAN 100 (HQ-SRV): 172.16.4.0/26
+	VLAN 200 (HQ-CLI): 172.16.6.0/28
+	VLAN 999 (Управление): 172.16.7.0/29
+Конфигурации сети для ISP:
+enable
+configure terminal
+hostname ISP
+interface GigabitEthernet0/0
+ ip address 172.16.0.0 255.255.255.0
+ no shutdown
+interface GigabitEthernet0/1
+ ip address 172.16.0.1 255.255.255.240
+ no shutdown
+interface GigabitEthernet0/2
+ ip address dhcp
+ no shutdown
+interface GigabitEthernet0/3
+ switchport mode trunk
+ no shutdown
+Настройка DHCP на ISP
+ip dhcp pool HQ-CLI
+ network 172.16.0.0 255.255.255.240
+ default-router 172.16.0.1
+ dns-server 172.16.4.2
+ lease 7
+ip dhcp excluded-address 172.16.0.1
+Конфигурации сети для HQ-RTR:
+enable
+configure terminal
+hostname HQ-RTR
+interface GigabitEthernet0/0
+ ip address 172.16.4.1 255.255.255.240
+ no shutdown
+interface GigabitEthernet0/1
+ ip address 172.16.6.1 255.255.255.240
+ no shutdown
+interface GigabitEthernet0/2
+ ip address dhcp
+ no shutdown
+interface GigabitEthernet0/3
+ switchport mode trunk
+ no shutdown                                        
+ip route 172.16.4.1 255.255.255.0 172.16.0.1
+router ospf 1   # Включаем OSPF (динамическая маршрутизация) и задаем процесс ID
+ network 172.16.0.0 0.0.255.255 area 0 0  # Объявляем сеть 172.16.0.0/24 в области 0
+write memory
+Объяснение параметров:
+	router ospf 1: Это включает OSPF с идентификатором процесса 1.
+network [ip] [wildcard-mask] area [area-id]: Эта команда используется для объявления сетей OSPF. Wildcard-маска позволяет указать диапазон IP-адресов
+Конфигурации сети для BR-RTR:
+enable
+configure terminal
+hostname BR-RTR
+interface GigabitEthernet0/0
+ ip address 172.16.5.1 255.255.255.0
+ no shutdown
+interface GigabitEthernet0/1
+ ip address dhcp
+ no shutdown
+interface GigabitEthernet0/2
+ switchport mode trunk
+ no shutdown                                      #маршрутизация
+ip route 172.16.5.1 255.255.255.0 172.16.0.0                                     # динамическая маршрутизация
+router ospf 1   # Включаем OSPF (динамическая маршрутизация) и задаем процесс ID
+ network 172.16.0.0 0.0.255.255 area 0 0  # Объявляем сеть 172.16.0.0/24 в области 0
+write memory
+Объяснение параметров:
+	router ospf 1: Это включает OSPF с идентификатором процесса 1.
+network [ip] [wildcard-mask] area [area-id]: Эта команда используется для объявления сетей OSPF. Wildcard-маска позволяет указать диапазон IP-адресов
+Настройка GRE-туннеля между HQ-RTR и BR-RTR
+interface Tunnel0
+ ip address 192.168.1.1 255.255.255.0
+ tunnel source 172.16.4.1
+ tunnel destination 172.16.5.1
+Настройка GRE-туннеля между BR-RTR и HQ-RTR
+Конфигурация туннеля
+bash
+interface Tunnel0
+ ip address 192.168.1.2 255.255.255.0
+ tunnel source 172.16.5.1
+ tunnel destination 172.16.4.1
+Настройка маршрутов для туннелей
+Чтобы обеспечить связь между локальными сетями через GRE-туннель, требуется настроить статические маршруты на обоих маршрутизаторах.
+На HQ-RTR:
+ip route 172.16.5.0 255.255.255.240 Tunnel0
+На BR-RTR:
+ip route 172.16.4.0 255.255.255.240 Tunnel0
+Настройка NAT (если необходимо)
+Если требуется доступ к интернету из локальных сетей, настройте NAT на маршрутизаторе. Например, для HQ-RTR:
+ip nat inside source list 1 interface GigabitEthernet0/2 overload
+access-list 1 permit 172.16.0.0 0.15.255.255
+Если требуется доступ к интернету из локальных сетей, настройте NAT на маршрутизаторе. Например, для BR-RTR:
+ip nat inside source list 1 interface GigabitEthernet0/2 overload
+access-list 1 permit 172.16.0.0 0.15.255.255
+Если требуется доступ к интернету из локальных сетей, настройте NAT на маршрутизаторе. Например, для ISP:
+ip nat inside source list 1 interface GigabitEthernet0/2 overload
+access-list 1 permit 172.16.0.0 0.15.255.255
+Настройки безопасности
+Убедитесь, что включена аутентификация для управления маршрутами и выполнен аудит:
+	Включите SSH для удаленного доступа к маршрутизаторам.
+	Проверьте правила контроля доступа (ACL) для защиты от несанкционированного доступа.
+Пример настройки SSH:
+ip domain-name yourdomain.com (любой домен вместо этого)
+crypto key generate rsa
+username admin privilege 15 secret yourpassword (пароль)
+line vty 0 15
+ transport input ssh
+ login local
+Резервное копирование конфигураций (напоминание)
+Сохранить конфигурации на каждом маршрутизаторе:
+write memory
+Создание пользователей
+На серверах HQ-SRV и BR-SRV создайте пользователя sshuser и net_admin с соответствующими паролями.
+Пример создания пользователя:
+sudo adduser sshuser
+sudo passwd sshuser
+Настройка sudo без пароля:
+sudo visudo
+Добавьте строку:
+plaintext
+sshuser ALL=(ALL) NOPASSWD: ALL
+Настройка VLAN
+На коммутаторе HQ настройте VLAN:
+	VLAN 100 для сервера HQ-SRV
+	VLAN 200 для клиента HQ-CLI
+               VLAN 999 для управления
+Пример конфигурации VLAN:
+vlan 100
+ name HQ-SRV
+ exit
+vlan 200
+ name HQ-CLI
+ exit
+vlan 999
+ name Management
+ exit
+Тестирование и отладка
+После завершения всех настроек выполнить тестирование сети:
+1.	Ping между всеми устройствами для проверки связности.
+2.	Тестирование DHCP: проверьте, что клиенты получают IP-адреса.
+3.	Тестирование маршрутизации: убедитесь, что пакеты проходят через маршрутизаторы.
+Пример Ping:
+ping 172.16.4.1
+ping 192.16.5.1
+Войти в user нужен пароль resu чтобы войти в su- пароль toor
+спокойно щас блять открываем nano /etc/net/ifaces/enp6s19/ipv4address
+хуярим айпишник И МАСКУ
+в том же enp6s19 открываем ipv4route
+быстренько хуярим default via айпишник роутера
+systemctl restart network
+и радуемся жизни 
+1. Создайте каталог для интерфейса (если его нет)
+bash
+sudo mkdir -p /etc/net/ifaces/enp6s19
+2. Создайте файл ipv4address с IP-адресом
+bash
+echo "192.168.1.100/24" | sudo tee /etc/net/ifaces/enp6s19/ipv4address
+</p>
   </body>
 </html>
