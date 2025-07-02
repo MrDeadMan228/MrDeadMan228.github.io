@@ -551,7 +551,9 @@ sudo mkdir -p /etc/net/ifaces/enp6s19
 bash
 echo "192.168.1.100/24" | sudo tee /etc/net/ifaces/enp6s19/ipv4address
 3.Создайте файл ipv4route
-echo "" | sudo tee /etc/net/ifaces/enp6s19/ipv4address	    
+echo "default via" | sudo tee /etc/net/ifaces/enp6s19/ipv4route
+ nano /etc/net/ifaces/enp6s19/ipv4route
+	туда вписать: default via и айпишник роутера    
 </p>
   </body>
 </html>
