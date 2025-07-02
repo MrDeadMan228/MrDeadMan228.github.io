@@ -143,11 +143,11 @@ sudo bash -c 'echo ".upper()
     <li> к : 172.16.5.0/28</li>
   </ul>
   <h2>Настройки интерфейсов и IP</h2>
-  <pre><code>interface vlan 100
- ip address 192.168.10.1 255.255.255.192
+  <pre><code>interface vlan 100 либо interface gigabitethernet1
+ ip address 192.168.10.1 255.255.255.240
  no shutdown
 ...</code></pre>
-  <h2>Netplan конфигурации</h2>
+  <h2>Netplan конфигурации дальше в основном Линукс</h2>
   <pre><code>network:
   version: 2
   ethernets:
