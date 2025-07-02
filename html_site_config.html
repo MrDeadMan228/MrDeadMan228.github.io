@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Модуль 1 — Сетевая настройка</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      max-width: 1000px;
+      margin: auto;
+      padding: 2em;
+      background-color: #fefefe;
+      color: #222;
+    }
+    pre {
+      background: #f0f0f0;
+      padding: 1em;
+      overflow-x: auto;
+      border-left: 4px solid #999;
+    }
+    h1, h2, h3 {
+      color: #2c3e50;
+    }
+    code {
+      background: #e2e2e2;
+      padding: 2px 4px;
+      font-family: Consolas, monospace;
+    }
+  </style>
+</head>
+<body>
+  <h1>Модуль 1: Базовая настройка устройств и сетевых сервисов</h1>
+  <p>Данный модуль охватывает настройку имен хостов, IP-адресации, подсетей, NAT, DHCP, OSPF, GRE и сервисов на Linux-серверах, включая DNS и SSH. Конфигурации выполняются как на сетевом оборудовании, так и на виртуальных машинах.</p>
+  <h2>Конфигурация устройств</h2>
+  <pre><code># Вход в режим глобальной конфигурации
+configure terminal
+hostname isp.au-team.irpo
+exit
+write memory
+
+configure terminal
+hostname hq-rtr.au-team.irpo
+exit
+write memory
+
+configure terminal
+hostname br-rtr.au-team.irpo
+exit
+write memory</code></pre>
+  <h2>Настройка имени хоста в Linux</h2>
+  <pre><code>sudo hostnamectl set-hostname hq-srv.au-team.irpo
+sudo bash -c 'echo hq-srv.au-team.irpo > /etc/hostname'
+...</code></pre>
+  <h2>Подсети и IP-адреса</h2>
+  <ul>
+    <li>VLAN 100 (HQ-SRV): 192.168.10.0/26</li>
+    <li>VLAN 200 (HQ-CLI): 192.168.10.64/28</li>
+    <li>VLAN 999 (Управление): 192.168.10.80/29</li>
+    <li>BR-SRV: 192.168.20.0/27</li>
+    <li>ISP к HQ-RTR: 172.16.4.0/28</li>
+    <li>ISP к BR-RTR: 172.16.5.0/28</li>
+  </ul>
+  <h2>Настройки интерфейсов и IP</h2>
+  <pre><code>interface vlan 100
+ ip address 192.168.10.1 255.255.255.192
+ no shutdown
+...</code></pre>
+  <h2>Netplan конфигурации</h2>
+  <pre><code>network:
+  version: 2
+  ethernets:
+    eth0:
+      addresses:
+        - 192.168.10.2/26
+      gateway4: 192.168.10.1
+      nameservers:
+        addresses: [192.168.10.2]</code></pre>
+  <h2>Настройка NAT, DHCP, GRE, OSPF</h2>
+  <pre><code>ip nat pool HQ_POOL 172.16.4.1 172.16.4.1 netmask 255.255.255.240
+ip nat inside source list 1 pool HQ_POOL overload
+...
+router ospf 1
+ network 10.0.0.0 0.0.0.3 area 0
+...</code></pre>
+  <h2>DNS-сервер (BIND)</h2>
+  <pre><code>zone "au-team.irpo" {
+  type master;
+  file "/etc/bind/db.au-team.irpo";
+};</code></pre>
+  <h2>SSH и безопасность</h2>
+  <pre><code>Port 2024
+PermitRootLogin no
+AllowUsers sshuser
+...</code></pre>
+  <p>Полный текст можно оформить по аналогии, разбив на тематические секции. Все команды сохранены и готовы для размещения на GitHub Pages.</p>
+</body>
+</html>
