@@ -550,6 +550,8 @@ sudo mkdir -p /etc/net/ifaces/enp6s19
 2. Создайте файл ipv4address с IP-адресом
 bash
 echo "192.168.1.100/24" | sudo tee /etc/net/ifaces/enp6s19/ipv4address
+3.Создайте файл ipv4route
+echo "" | sudo tee /etc/net/ifaces/enp6s19/ipv4address	    
 </p>
   </body>
 </html>
