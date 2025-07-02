@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Модуль 1 — Сетевая настройка</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      max-width: 1000px;
+      margin: auto;
+      padding: 2em;
+      background-color: #fefefe;
+      color: #222;
+    }
+    pre {
+      background: #f0f0f0;
+      padding: 1em;
+      overflow-x: auto;
+      border-left: 4px solid #999;
+    }
+    h1, h2, h3 {
+      color: #2c3e50;
+    }
+    code {
+      background: #e2e2e2;
+      padding: 2px 4px;
+      font-family: Consolas, monospace;
+    }
+  </style>
+</head>
+<body>
+  <h1>Модуль 1: Базовая настройка устройств и сетевых сервисов</h1>
+  <p>Данный модуль охватывает настройку имен хостов, IP-адресации, подсетей, NAT, DHCP, OSPF, GRE и сервисов на Linux-серверах, включая DNS и SSH. Конфигурации выполняются как на сетевом оборудовании, так и на виртуальных машинах.</p>
+  <h2>Конфигурация устройств</h2>
+  <pre><code># Вход в режим глобальной конфигурации
+configure terminal
+hostname ".upper()
+    }
+  ]
+}
+exit
+write memory
+
+configure terminal
+hostname ".upper()
+    }
+  ]
+}
+exit
+write memory
+
+configure terminal
+hostname ".upper()
+    }
+  ]
+}
+exit
+write memory</code></pre>
+  <h2>Настройка имени хоста в Linux</h2>
+  <pre><code>sudo hostnamectl set-hostname ".upper()
+    }
+  ]
+}
+sudo bash -c 'echo ".upper()
+    }
+  ]
+} > /etc/hostname'
+...</code></pre>
+  <h2>Подсети и IP-адреса</h2>
+  <ul>
+    <li>VLAN 100 (): 192.168.10.0/26</li>
+    <li>VLAN 200 (): 192.168.10.64/28</li>
+    <li>VLAN 999 (Управление): 192.168.10.80/29</li>
+    <li>: 192.168.20.0/27</li>
+    <li> к : 172.16.4.0/28</li>
+    <li> к : 172.16.5.0/28</li>
+  </ul>
+  <h2>Настройки интерфейсов и IP</h2>
+  <pre><code>interface vlan 100
+ ip address 192.168.10.1 255.255.255.192
+ no shutdown
+...</code></pre>
+  <h2>Netplan конфигурации</h2>
+  <pre><code>network:
+  version: 2
+  ethernets:
+    eth0:
+      addresses:
+        - 192.168.10.2/26
+      gateway4: 192.168.10.1
+      nameservers:
+        addresses: [192.168.10.2]</code></pre>
+  <h2>Настройка NAT, DHCP, GRE, OSPF</h2>
+  <pre><code>ip nat pool HQ_POOL 172.16.4.1 172.16.4.1 netmask 255.255.255.240
+ip nat inside source list 1 pool HQ_POOL overload
+...
+router ospf 1
+ network 10.0.0.0 0.0.0.3 area 0
+...</code></pre>
+  <h2>DNS-сервер (BIND)</h2>
+  <pre><code>zone "au-team.irpo" {
+  type master;
+  file "/etc/bind/db";
+};</code></pre>
+  <h2>SSH и безопасность</h2>
+  <pre><code>Port 2024
+PermitRootLogin no
+AllowUsers sshuser
+...</code></pre>
+  <h2>Быстрая настройка IP через ifaces</h2>
+  <p>Инструкция в стиле администратора :)</p>
+  <pre><code>Войти в user — нужен пароль: resu
+Чтобы войти в su — пароль: toor
+
+спокойно, щас блять открываем:
+nano /etc/net/ifaces/enp6s19/ipv4address
+хуярим айпишник И МАСКУ
+
+в том же enp6s19 открываем ipv4route
+быстренько хуярим:
+default via айпишник роутера
+
+systemctl restart network
+и радуемся жизни</code></pre>
+  <h3>Подробный пошаговый план:</h3>
+  <pre><code>1. Создайте каталог для интерфейса (если его нет)
+sudo mkdir -p /etc/net/ifaces/enp6s19
+
+2. Создайте файл ipv4address с IP-адресом
+sudo bash -c 'echo "192.168.1.100/24" > /etc/net/ifaces/enp6s19/ipv4address'
+
+3. Создайте файл ipv4route
+sudo bash -c 'echo "default via 192.168.1.1" > /etc/net/ifaces/enp6s19/ipv4route'
+
+# или вручную через редактор
+nano /etc/net/ifaces/enp6s19/ipv4route
+# туда вписать:
+default via 192.168.1.1</code></pre>
+  <p>После этого — <code>systemctl restart network</code> и всё работает.</p>
+</body>
+</html>
